@@ -27,11 +27,6 @@ static ngx_int_t ngx_http_req_status_writer_filter(ngx_http_request_t *r,
     off_t bsent);
 
 typedef struct {
-  ngx_rbtree_node_t     node;
-  ngx_queue_t           queue;
-
-  ngx_uint_t            count; // ref count
-
   ngx_uint_t            requests;
   ngx_uint_t            traffic;
 
@@ -40,13 +35,22 @@ typedef struct {
 
   ngx_uint_t            bandwidth;
   ngx_uint_t            max_bandwidth;
+} ngx_http_req_status_data_t;
 
-  ngx_uint_t            last_traffic;
-  ngx_msec_t            last_traffic_start;
-  ngx_msec_t            last_traffic_update;
+typedef struct {
+  ngx_rbtree_node_t           node;
+  ngx_queue_t                 queue;
 
-  ngx_uint_t            len;
-  u_char                data[0];
+  ngx_uint_t                  count; // ref count
+
+  ngx_http_req_status_data_t  data;
+
+  ngx_uint_t                  last_traffic;
+  ngx_msec_t                  last_traffic_start;
+  ngx_msec_t                  last_traffic_update;
+
+  ngx_uint_t                  len;
+  u_char                      kdata[0];
 } ngx_http_req_status_node_t;
 
 typedef struct {
@@ -59,6 +63,8 @@ typedef struct {
 typedef struct {
   ngx_str_t                   *zone_name;
   ngx_http_req_status_node_t  *node;
+  ngx_http_req_status_data_t  *pdata;
+  ngx_http_req_status_data_t  data;
 } ngx_http_req_status_print_item_t;
 
 typedef struct {
@@ -264,7 +270,7 @@ ngx_http_req_status_rbtree_insert_value(ngx_rbtree_node_t *temp,
       cn = (ngx_http_req_status_node_t *) node;
       cnt = (ngx_http_req_status_node_t *) temp;
 
-      p = (ngx_memn2cmp(cn->data, cnt->data, cn->len, cnt->len) < 0)
+      p = (ngx_memn2cmp(cn->kdata, cnt->kdata, cn->len, cnt->len) < 0)
         ? &temp->left : &temp->right;
     }
 
@@ -321,7 +327,7 @@ static void ngx_http_req_status_cleanup(void *data) {
   for (i = 0; i < r_ctx->req_zones.nelts; i++){
     ngx_shmtx_lock(&pzn[i].zone->shpool->mutex);
     pzn[i].node->count --;
-    pzn[i].node->active --;
+    pzn[i].node->data.active --;
     ngx_shmtx_unlock(&pzn[i].zone->shpool->mutex);
   }
 }
@@ -401,19 +407,19 @@ static ngx_int_t ngx_http_req_status_handler(ngx_http_request_t *r){
         ssn->node.key = hash;
         ssn->len = key.len;
         ssn->count = 1;
-        ssn->active = ssn->requests = 0;
-        ngx_memcpy(ssn->data, key.data, key.len);
-        ssn->data[key.len] = '\0';
+        ngx_memzero(&ssn->data, sizeof(ssn->data));
+        ngx_memcpy(ssn->kdata, key.data, key.len);
+        ssn->kdata[key.len] = '\0';
         ssn->last_traffic_update = 0;
 
         ngx_rbtree_insert(&ctx->sh->rbtree, &ssn->node);
       }
 
       tp = ngx_timeofday();
-      ssn->requests ++;
-      ssn->active ++;
-      if (ssn->active > ssn->max_active){
-        ssn->max_active = ssn->active;
+      ssn->data.requests ++;
+      ssn->data.active ++;
+      if (ssn->data.active > ssn->data.max_active){
+        ssn->data.max_active = ssn->data.active;
       }
 
       ngx_queue_insert_head(&ctx->sh->queue, &ssn->queue);
@@ -456,7 +462,7 @@ static void * ngx_http_req_status_lookup(void *conf, ngx_uint_t hash,
     /* hash == node->key */
     do {
       ssn = (ngx_http_req_status_node_t *)node;
-      rc = ngx_memn2cmp(key->data, ssn->data, key->len, ssn->len);
+      rc = ngx_memn2cmp(key->data, ssn->kdata, key->len, ssn->len);
       if (rc == 0){
         ngx_queue_remove(&ssn->queue);
         ssn->count ++;
@@ -489,7 +495,7 @@ static void ngx_http_req_status_expire(void *conf) {
       ngx_current_msec - ssn->last_traffic_update >= 10 * 1000){
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,
         "req-status, release node, zone = \"%V\", key = \"%s\"",
-        &ctx->shm_zone->shm.name, ssn->data);
+        &ctx->shm_zone->shm.name, ssn->kdata);
 
     ngx_queue_remove(q);
     ngx_rbtree_delete(&ctx->sh->rbtree, &ssn->node);
@@ -619,12 +625,12 @@ ngx_http_req_status_cmp_items(const void *one, const void *two)
   ngx_http_req_status_print_item_t *second = (ngx_http_req_status_print_item_t*) two;
 
   return (int)(first->zone_name == second->zone_name) ? 
-    ngx_strcmp(first->node->data, second->node->data) :
+    ngx_strcmp(first->node->kdata, second->node->kdata) :
     ngx_strncmp(first->zone_name->data, second->zone_name->data, first->zone_name->len);
 }
 
 static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
-  size_t                            size;
+  size_t                            size, item_size;
   ngx_int_t                         rc;
   ngx_uint_t                        i;
   ngx_buf_t                         *b;
@@ -635,7 +641,7 @@ static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
   ngx_http_req_status_print_item_t  *item;
   ngx_array_t                       items;
   ngx_queue_t                       *q;
-  u_char                            long_num, full_info;
+  u_char                            long_num, full_info, clear_status;
   static u_char                     header[] = 
     "zone_name\tkey\tmax_active\tmax_bw\ttraffic\trequests\tactive\tbandwidth\n";
 
@@ -661,13 +667,17 @@ static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
     }
   }
 
-  if (ngx_array_init(&items, r->pool, 2,
-        sizeof(ngx_http_req_status_print_item_t)) != NGX_OK){
+#define IN_NGX_STR(s, u)  \
+  (ngx_strlchr((s)->data, (s)->data + (s)->len, u) != NULL)
+  full_info = IN_NGX_STR(&r->args, 'f');
+  long_num = IN_NGX_STR(&r->args, 'l');
+  clear_status = IN_NGX_STR(&r->args, 'c');
+
+  item_size = sizeof(ngx_http_req_status_print_item_t) -
+    (clear_status ? 0 : sizeof(ngx_http_req_status_data_t));
+  if (ngx_array_init(&items, r->pool, 2, item_size) != NGX_OK){
     return NGX_HTTP_INTERNAL_SERVER_ERROR;
   }
-
-  full_info = ngx_strlchr(r->args.data, r->args.data + r->args.len, 'f') != NULL;
-  long_num = ngx_strlchr(r->args.data, r->args.data + r->args.len, 'l') != NULL;
 
   size = sizeof(header) - 1;
   mconf = ngx_http_get_module_main_conf(r, ngx_http_req_status_module);
@@ -685,7 +695,7 @@ static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
             ((NGX_HTTP_REQ_STATUS_TIME_DIFF_SECONDS)*1000)){
           rsn->last_traffic_start = 0;
           rsn->last_traffic = 0;
-          rsn->bandwidth = 0;
+          rsn->data.bandwidth = 0;
           rsn->last_traffic_update = ngx_current_msec;
         }
       }
@@ -701,6 +711,13 @@ static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
       }
       item->zone_name = &pzone[i]->shm_zone->shm.name;
       item->node = rsn;
+      if (clear_status){
+        item->pdata = &item->data;
+        ngx_memcpy(&item->data, &rsn->data, sizeof(ngx_http_req_status_data_t));
+        ngx_memzero(&rsn->data, sizeof(ngx_http_req_status_data_t));
+      } else {
+        item->pdata = &rsn->data;
+      }
     }
     pzone[i]->sh->expire_lock = ngx_time() + NGX_HTTP_REQ_STATUS_EXPIRE_LOCK_SECONDS;
     ngx_shmtx_unlock(&pzone[i]->shpool->mutex);
@@ -708,9 +725,7 @@ static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
 
   item = items.elts;
   if (items.nelts > 1) {
-    ngx_qsort(item, (size_t) items.nelts,
-        sizeof(ngx_http_req_status_print_item_t),
-        ngx_http_req_status_cmp_items);
+    ngx_qsort(item, (size_t) items.nelts, item_size, ngx_http_req_status_cmp_items);
   }
 
   b = ngx_create_temp_buf(r->pool, size);
@@ -721,40 +736,41 @@ static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
   b->last = ngx_cpymem(b->last, header, sizeof(header) - 1);
 
   for (i = 0; i < items.nelts; i++){
-    b->last = ngx_cpymem(b->last, item[i].zone_name->data, item[i].zone_name->len);
+    item = (ngx_http_req_status_data_t *)((u_char*)items.elts + i * item_size);
+    b->last = ngx_cpymem(b->last, item->zone_name->data, item->zone_name->len);
     *b->last ++ = '\t';
-    b->last = ngx_cpymem(b->last, item[i].node->data, item[i].node->len);
+    b->last = ngx_cpymem(b->last, item->node->kdata, item->node->len);
     *b->last ++ = '\t';
     if (long_num){
       b->last = ngx_sprintf(b->last, "%ui\t%ui\t%ui\t%ui\t%ui\t%ui",
-          item[i].node->max_active,
-          item[i].node->max_bandwidth * 8,
-          item[i].node->traffic * 8,
-          item[i].node->requests,
-          item[i].node->active,
-          item[i].node->bandwidth * 8
+          item->pdata->max_active,
+          item->pdata->max_bandwidth * 8,
+          item->pdata->traffic * 8,
+          item->pdata->requests,
+          item->pdata->active,
+          item->pdata->bandwidth * 8
           );
     } else {
-      b->last = ngx_sprintf(b->last, "%ui\t", item[i].node->max_active);
+      b->last = ngx_sprintf(b->last, "%ui\t", item->pdata->max_active);
       b->last = ngx_http_req_status_num_human_readable(b->last,
-          item[i].node->max_bandwidth * 8);
+          item->pdata->max_bandwidth * 8);
       *b->last ++ = '\t';
 
       b->last = ngx_http_req_status_num_human_readable(b->last,
-          item[i].node->traffic * 8);
+          item->pdata->traffic * 8);
       *b->last ++ = '\t';
 
-      b->last = ngx_sprintf(b->last, "%ui\t", item[i].node->requests);
-      b->last = ngx_sprintf(b->last, "%ui\t", item[i].node->active);
+      b->last = ngx_sprintf(b->last, "%ui\t", item->pdata->requests);
+      b->last = ngx_sprintf(b->last, "%ui\t", item->pdata->active);
 
       b->last = ngx_http_req_status_num_human_readable(b->last,
-          item[i].node->bandwidth * 8);
+          item->pdata->bandwidth * 8);
     }
     if (full_info){
       b->last = ngx_sprintf(b->last, "\t%ui\t%ui\t%ui",
-          item[i].node->last_traffic * 8,
-          item[i].node->last_traffic_start,
-          item[i].node->last_traffic_update
+          item->node->last_traffic * 8,
+          item->node->last_traffic_start,
+          item->node->last_traffic_update
           );
     }
     *b->last ++ = '\n';
@@ -794,11 +810,12 @@ static void *ngx_http_req_status_create_mconf(ngx_conf_t *cf){
 
 static ngx_int_t ngx_http_req_status_writer_filter(ngx_http_request_t *r,
     off_t bsent){
-  ngx_http_req_status_ctx_t       *r_ctx;
-  ngx_http_req_status_zone_node_t *pzn;
-  ngx_uint_t                      i;
-  off_t                           bytes;
-  ngx_msec_t                      td;
+  ngx_http_req_status_ctx_t           *r_ctx;
+  ngx_http_req_status_zone_node_t     *pzn;
+  ngx_uint_t                          i;
+  off_t                               bytes;
+  ngx_msec_t                          td;
+  register ngx_http_req_status_data_t *data;
 
   r_ctx = ngx_http_get_module_ctx(r, ngx_http_req_status_module);
   if (r_ctx == NULL || r_ctx->req_zones.nelts == 0){
@@ -809,13 +826,14 @@ static ngx_int_t ngx_http_req_status_writer_filter(ngx_http_request_t *r,
   pzn = r_ctx->req_zones.elts;
   for (i = 0; i < r_ctx->req_zones.nelts; i++){
     ngx_shmtx_lock(&pzn[i].zone->shpool->mutex);
-    pzn[i].node->traffic += bytes;
+    data = &pzn[i].node->data;
+    data->traffic += bytes;
     if (ngx_current_msec > pzn[i].node->last_traffic_start){
       td = ngx_current_msec - pzn[i].node->last_traffic_start;
       if (td >= (NGX_HTTP_REQ_STATUS_TIME_DIFF_SECONDS)*1000){
-        pzn[i].node->bandwidth = pzn[i].node->last_traffic * 1000 / td;
-        if (pzn[i].node->bandwidth > pzn[i].node->max_bandwidth){
-          pzn[i].node->max_bandwidth = pzn[i].node->bandwidth;
+        data->bandwidth = pzn[i].node->last_traffic * 1000 / td;
+        if (data->bandwidth > data->max_bandwidth){
+          data->max_bandwidth = data->bandwidth;
         }
         pzn[i].node->last_traffic = 0;
         pzn[i].node->last_traffic_start = ngx_current_msec;
