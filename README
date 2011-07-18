@@ -1,0 +1,38 @@
+* 模块使用需要打 patch, 目前对 1.0.2~1.0.4 有效
+  cd nginx-1.0.x; patch -p1 < path/nginx.patch
+
+* 配置说明
+  * req_status_zone
+    syntax:  req_status_zone zone_name $variable memory_max_size
+    context: http
+
+    定义统计类型, 内容及内存使用限制.
+
+    如:
+    req_status_zone server_name $server_name 256k;
+    req_status_zone server_addr $server_addr 256k;
+    req_status server_name server_addr;
+
+    variable 可以是组合, 比如 "$server_name,$server_addr"
+
+  * req_status
+    syntax:  req_status zone_name1 [zone_name2]
+    context: http, server, location
+
+    启用预义的 req_status_zone 统计, 外层的定义会被内层继承, 除非
+    内层在 req_status 中显示使用了 none
+
+  * req_status_show
+    syntax:  req_status_show
+    context: server, location
+
+    统计信息页面. 支持以下参数:
+    c: 统计信息重置
+
+* 配置示例
+
+http {
+  req_status_zone server_name $server_name 256k;
+  req_status_zone server_addr $server_addr 256k;
+  req_status server_name server_addr;
+}
