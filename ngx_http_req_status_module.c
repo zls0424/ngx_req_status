@@ -491,8 +491,8 @@ static void ngx_http_req_status_expire(void *conf) {
   q =  ngx_queue_last(&ctx->sh->queue);
   ssn = ngx_queue_data(q, ngx_http_req_status_node_t, queue);
 
-  if (ngx_current_msec > ssn->last_traffic_update &&
-      ngx_current_msec - ssn->last_traffic_update >= 10 * 1000){
+  if (!ssn->data.requests || (ngx_current_msec > ssn->last_traffic_update &&
+      ngx_current_msec - ssn->last_traffic_update >= 10 * 1000)){
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,
         "req-status, release node, zone = \"%V\", key = \"%s\"",
         &ctx->shm_zone->shm.name, ssn->kdata);
@@ -689,6 +689,9 @@ static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r){
         q = ngx_queue_prev(q))
     {
       rsn = ngx_queue_data(q, ngx_http_req_status_node_t, queue);
+      if (!rsn->data.requests){
+        continue;
+      }
       if (rsn->last_traffic){
         if (ngx_current_msec > rsn->last_traffic_update &&
             ngx_current_msec - rsn->last_traffic_update >= 
