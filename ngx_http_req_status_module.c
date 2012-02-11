@@ -493,7 +493,7 @@ static void ngx_http_req_status_expire(void *conf) {
 
   if (!ssn->data.requests || (ngx_current_msec > ssn->last_traffic_update &&
       ngx_current_msec - ssn->last_traffic_update >= 10 * 1000)){
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,
+    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,
         "req-status, release node, zone = \"%V\", key = \"%s\"",
         &ctx->shm_zone->shm.name, ssn->kdata);
 
