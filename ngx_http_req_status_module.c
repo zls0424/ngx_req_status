@@ -460,17 +460,14 @@ static void * ngx_http_req_status_lookup(void *conf, ngx_uint_t hash,
     }
 
     /* hash == node->key */
-    do {
-      ssn = (ngx_http_req_status_node_t *)node;
-      rc = ngx_memn2cmp(key->data, ssn->kdata, key->len, ssn->len);
-      if (rc == 0){
-        ngx_queue_remove(&ssn->queue);
-        ssn->count ++;
-        return ssn;
-      }
-      node = (rc < 0) ? node->left : node->right;
-    } while (node != sentinel && hash == node->key);
-    break;
+    ssn = (ngx_http_req_status_node_t *)node;
+    rc = ngx_memn2cmp(key->data, ssn->kdata, key->len, ssn->len);
+    if (rc == 0){
+      ngx_queue_remove(&ssn->queue);
+      ssn->count ++;
+      return ssn;
+    }
+    node = (rc < 0) ? node->left : node->right;
   }
 
   return NULL;
