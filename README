@@ -19,15 +19,17 @@
     syntax:  req_status zone_name1 [zone_name2]
     context: http, server, location
 
-    启用预义的 req_status_zone 统计, 外层的定义会被内层继承, 除非
-    内层在 req_status 中显示使用了 none
+    为 location 启用定义的 req_status_zone 统计, 外层的定义会被
+    内层继承, 除非内层在 req_status 中单独或者在某个 zone_name
+    前使用了 @
 
   * req_status_show
     syntax:  req_status_show
-    context: server, location
+    context: location
 
     统计信息页面. 支持以下参数:
     c: 统计信息重置
+    l: 数字使用原始格式显示
 
 * 配置示例
 
