@@ -94,7 +94,7 @@ typedef struct {
 typedef struct {
     ngx_array_t                     zones;
 
-    ngx_msec_t                      time_diff;
+    ngx_msec_t                      interval;
     time_t                          lock_time;
 } ngx_http_req_status_main_conf_t;
 
@@ -120,11 +120,11 @@ static ngx_http_module_t ngx_http_req_status_module_ctx = {
 
 
 static ngx_command_t ngx_http_req_status_commands[] = {
-    { ngx_string("req_status_time_diff"),
+    { ngx_string("req_status_interval"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
       0,
-      offsetof(ngx_http_req_status_main_conf_t, time_diff),
+      offsetof(ngx_http_req_status_main_conf_t, interval),
       NULL },
 
     { ngx_string("req_status_lock_time"),
@@ -211,7 +211,7 @@ ngx_http_req_status_write_filter(ngx_http_request_t *r, off_t bsent)
 
             td = ngx_current_msec - pzn[i].node->last_traffic_start;
 
-            if (td >= rmcf->time_diff){
+            if (td >= rmcf->interval){
                 data->bandwidth = pzn[i].node->last_traffic * 1000 / td;
                 if (data->bandwidth > data->max_bandwidth){
                     data->max_bandwidth = data->bandwidth;
@@ -625,7 +625,7 @@ ngx_http_req_status_show_handler(ngx_http_request_t *r)
             if (rsn->last_traffic){
                 if (ngx_current_msec > rsn->last_traffic_update &&
                         ngx_current_msec - rsn->last_traffic_update >= 
-                        rmcf->time_diff){
+                        rmcf->interval){
                     rsn->last_traffic_start = 0;
                     rsn->last_traffic = 0;
                     rsn->data.bandwidth = 0;
@@ -758,7 +758,7 @@ ngx_http_req_status_create_main_conf(ngx_conf_t *cf)
         return NULL;
     }
 
-    rmcf->time_diff = NGX_CONF_UNSET_MSEC;
+    rmcf->interval = NGX_CONF_UNSET_MSEC;
     rmcf->lock_time = NGX_CONF_UNSET;
 
     return rmcf;
@@ -769,7 +769,7 @@ ngx_http_req_status_init_main_conf(ngx_conf_t *cf, void *conf)
 {
     ngx_http_req_status_main_conf_t *rmcf = conf;
 
-    ngx_conf_init_msec_value(rmcf->time_diff, 3000);
+    ngx_conf_init_msec_value(rmcf->interval, 3000);
     ngx_conf_init_value(rmcf->lock_time, 10);
 
     return NGX_CONF_OK;
