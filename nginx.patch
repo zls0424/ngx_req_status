@@ -1,57 +1,47 @@
 diff -pruN nginx-1.0.2/src/http/ngx_http.c nginx-1.0.2.zls/src/http/ngx_http.c
 --- nginx-1.0.2/src/http/ngx_http.c	2010-12-13 05:13:27.000000000 +0800
 +++ nginx-1.0.2.zls/src/http/ngx_http.c	2011-05-11 13:32:52.524157563 +0800
-@@ -70,7 +70,10 @@ ngx_uint_t   ngx_http_max_module;
+@@ -70,6 +70,7 @@ ngx_uint_t   ngx_http_max_module;
  
  ngx_int_t  (*ngx_http_top_header_filter) (ngx_http_request_t *r);
  ngx_int_t  (*ngx_http_top_body_filter) (ngx_http_request_t *r, ngx_chain_t *ch);
--
-+/* add by zls */
-+ngx_int_t  (*ngx_http_top_writer_filter) (ngx_http_request_t *r,
-+            off_t bsent);
-+/* end add */
++ngx_int_t  (*ngx_http_top_writer_filter) (ngx_http_request_t *r, off_t bsent);
+ 
  
  ngx_str_t  ngx_http_html_default_types[] = {
-     ngx_string("text/html"),
 diff -pruN nginx-1.0.2/src/http/ngx_http_core_module.h nginx-1.0.2.zls/src/http/ngx_http_core_module.h
 --- nginx-1.0.2/src/http/ngx_http_core_module.h	2010-11-26 20:40:56.000000000 +0800
 +++ nginx-1.0.2.zls/src/http/ngx_http_core_module.h	2011-05-11 13:36:03.024063063 +0800
-@@ -485,6 +485,10 @@ ngx_http_cleanup_t *ngx_http_cleanup_add
+@@ -485,6 +485,8 @@ ngx_http_cleanup_t *ngx_http_cleanup_add
  typedef ngx_int_t (*ngx_http_output_header_filter_pt)(ngx_http_request_t *r);
  typedef ngx_int_t (*ngx_http_output_body_filter_pt)
      (ngx_http_request_t *r, ngx_chain_t *chain);
-+/* add by zls */
 +typedef ngx_int_t (*ngx_http_output_writer_filter_pt)(ngx_http_request_t *r,
 +    off_t bsent);
-+/* end add */
  
  
  ngx_int_t ngx_http_output_filter(ngx_http_request_t *r, ngx_chain_t *chain);
 diff -pruN nginx-1.0.2/src/http/ngx_http.h nginx-1.0.2.zls/src/http/ngx_http.h
 --- nginx-1.0.2/src/http/ngx_http.h	2010-10-04 22:59:41.000000000 +0800
 +++ nginx-1.0.2.zls/src/http/ngx_http.h	2011-05-11 13:32:21.290205563 +0800
-@@ -154,6 +154,9 @@ extern ngx_str_t  ngx_http_html_default_
+@@ -154,6 +154,7 @@ extern ngx_str_t  ngx_http_html_default_
  
  extern ngx_http_output_header_filter_pt  ngx_http_top_header_filter;
  extern ngx_http_output_body_filter_pt    ngx_http_top_body_filter;
-+/* add by zls */
-+extern ngx_http_output_writer_filter_pt ngx_http_top_writer_filter;
-+/* end add */
++extern ngx_http_output_writer_filter_pt  ngx_http_top_writer_filter;
  
  
  #endif /* _NGX_HTTP_H_INCLUDED_ */
 diff -pruN nginx-1.0.2/src/http/ngx_http_write_filter_module.c nginx-1.0.2.zls/src/http/ngx_http_write_filter_module.c
 --- nginx-1.0.2/src/http/ngx_http_write_filter_module.c	2009-06-02 22:01:50.000000000 +0800
 +++ nginx-1.0.2.zls/src/http/ngx_http_write_filter_module.c	2011-05-11 13:33:35.306831313 +0800
-@@ -245,6 +245,12 @@ ngx_http_write_filter(ngx_http_request_t
+@@ -245,6 +245,10 @@ ngx_http_write_filter(ngx_http_request_t
          return NGX_ERROR;
      }
  
-+    /* add by zls */
 +    if (ngx_http_top_writer_filter){
 +      ngx_http_top_writer_filter(r, sent);
 +    }
-+    /* end add */
 +
      if (r->limit_rate) {
  
