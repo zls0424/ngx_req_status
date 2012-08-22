@@ -5,7 +5,7 @@ diff -pruN nginx-1.0.2/src/http/ngx_http.c nginx-1.0.2.zls/src/http/ngx_http.c
  
  ngx_int_t  (*ngx_http_top_header_filter) (ngx_http_request_t *r);
  ngx_int_t  (*ngx_http_top_body_filter) (ngx_http_request_t *r, ngx_chain_t *ch);
-+ngx_int_t  (*ngx_http_top_writer_filter) (ngx_http_request_t *r, off_t bsent);
++ngx_int_t  (*ngx_http_top_write_filter) (ngx_http_request_t *r, off_t bsent);
  
  
  ngx_str_t  ngx_http_html_default_types[] = {
@@ -16,7 +16,7 @@ diff -pruN nginx-1.0.2/src/http/ngx_http_core_module.h nginx-1.0.2.zls/src/http/
  typedef ngx_int_t (*ngx_http_output_header_filter_pt)(ngx_http_request_t *r);
  typedef ngx_int_t (*ngx_http_output_body_filter_pt)
      (ngx_http_request_t *r, ngx_chain_t *chain);
-+typedef ngx_int_t (*ngx_http_output_writer_filter_pt)(ngx_http_request_t *r,
++typedef ngx_int_t (*ngx_http_output_write_filter_pt)(ngx_http_request_t *r,
 +    off_t bsent);
  
  
@@ -28,7 +28,7 @@ diff -pruN nginx-1.0.2/src/http/ngx_http.h nginx-1.0.2.zls/src/http/ngx_http.h
  
  extern ngx_http_output_header_filter_pt  ngx_http_top_header_filter;
  extern ngx_http_output_body_filter_pt    ngx_http_top_body_filter;
-+extern ngx_http_output_writer_filter_pt  ngx_http_top_writer_filter;
++extern ngx_http_output_write_filter_pt  ngx_http_top_write_filter;
  
  
  #endif /* _NGX_HTTP_H_INCLUDED_ */
@@ -39,8 +39,8 @@ diff -pruN nginx-1.0.2/src/http/ngx_http_write_filter_module.c nginx-1.0.2.zls/s
          return NGX_ERROR;
      }
  
-+    if (ngx_http_top_writer_filter){
-+      ngx_http_top_writer_filter(r, sent);
++    if (ngx_http_top_write_filter){
++      ngx_http_top_write_filter(r, sent);
 +    }
 +
      if (r->limit_rate) {

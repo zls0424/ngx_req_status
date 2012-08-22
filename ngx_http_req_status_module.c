@@ -29,7 +29,7 @@ static char *ngx_http_req_status_show(ngx_conf_t *cf, ngx_command_t *cmd,
         void *conf);
 
 static ngx_int_t ngx_http_req_status_show_handler(ngx_http_request_t *r);
-static ngx_int_t ngx_http_req_status_writer_filter(ngx_http_request_t *r,
+static ngx_int_t ngx_http_req_status_write_filter(ngx_http_request_t *r,
         off_t bsent);
 
 typedef struct ngx_http_req_status_loc_conf_s ngx_http_req_status_loc_conf_t;
@@ -179,7 +179,7 @@ ngx_module_t ngx_http_req_status_module = {
 
 
 static ngx_int_t
-ngx_http_req_status_writer_filter(ngx_http_request_t *r, off_t bsent)
+ngx_http_req_status_write_filter(ngx_http_request_t *r, off_t bsent)
 {
     off_t                                   bytes;
     ngx_uint_t                              i;
@@ -1031,7 +1031,7 @@ ngx_http_req_status_init(ngx_conf_t *cf)
 
     *h = ngx_http_req_status_handler;
 
-    ngx_http_top_writer_filter = ngx_http_req_status_writer_filter;
+    ngx_http_top_write_filter = ngx_http_req_status_write_filter;
 
     return NGX_OK;
 }
