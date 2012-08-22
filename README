@@ -1,5 +1,5 @@
 * 模块使用需要打 patch, 目前对 1.0.2~1.0.4 有效
-  cd nginx-1.0.x; patch -p1 < path/nginx.patch
+  cd nginx-1.0.x; patch -p1 < path/write_filter.patch
 
 * 配置说明
   * req_status_zone
