@@ -563,7 +563,7 @@ ngx_http_req_status_show_handler(ngx_http_request_t *r)
     ngx_http_req_status_zone_t        **pzone;
     ngx_http_req_status_node_t         *rsn;
     ngx_http_req_status_main_conf_t    *rmcf;
-    ngx_http_req_status_print_item_t   *item, *pitem;
+    ngx_http_req_status_print_item_t   *item;
     static u_char                       header[] = 
         "zone_name\tkey\tmax_active\tmax_bw\ttraffic\trequests\t"
         "active\tbandwidth\n";
@@ -663,10 +663,9 @@ ngx_http_req_status_show_handler(ngx_http_request_t *r)
         ngx_shmtx_unlock(&pzone[i]->shpool->mutex);
     }
 
-    pitem = items.elts;
-
     if (items.nelts > 1) {
-        ngx_qsort(pitem, (size_t) items.nelts, item_size, ngx_http_req_status_cmp_items);
+        ngx_qsort(items.elts, (size_t) items.nelts, item_size,
+                ngx_http_req_status_cmp_items);
     }
 
     b = ngx_create_temp_buf(r->pool, size);
@@ -676,8 +675,13 @@ ngx_http_req_status_show_handler(ngx_http_request_t *r)
 
     b->last = ngx_cpymem(b->last, header, sizeof(header) - 1);
 
+    item = items.elts;
+
     for (i = 0; i < items.nelts; i++){
-        item = &pitem[i];
+        if (i) {
+            item = (ngx_http_req_status_print_item_t *)
+                ((u_char *)item + item_size);
+        }
 
         /* set pdata here because of qsort above */
         if (item->pdata == NULL){
