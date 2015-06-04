@@ -1,0 +1,48 @@
+diff -pruN nginx-1.7.11/src/http/ngx_http.c nginx-1.7.11.zls/src/http/ngx_http.c
+--- nginx-1.7.11/src/http/ngx_http.c	2015-04-21 22:12:00.000000000 +0800
++++ nginx-1.7.11.zls/src/http/ngx_http.c	2015-06-04 12:10:58.989314197 +0800
+@@ -71,6 +71,7 @@ ngx_uint_t   ngx_http_max_module;
+ 
+ ngx_http_output_header_filter_pt  ngx_http_top_header_filter;
+ ngx_http_output_body_filter_pt    ngx_http_top_body_filter;
++ngx_http_output_write_filter_pt   ngx_http_top_write_filter;
+ ngx_http_request_body_filter_pt   ngx_http_top_request_body_filter;
+ 
+ 
+diff -pruN nginx-1.7.11/src/http/ngx_http_core_module.h nginx-1.7.11.zls/src/http/ngx_http_core_module.h
+--- nginx-1.7.11/src/http/ngx_http_core_module.h	2015-04-21 22:12:00.000000000 +0800
++++ nginx-1.7.11.zls/src/http/ngx_http_core_module.h	2015-06-04 12:12:03.985376197 +0800
+@@ -533,6 +533,8 @@ ngx_http_cleanup_t *ngx_http_cleanup_add
+ typedef ngx_int_t (*ngx_http_output_header_filter_pt)(ngx_http_request_t *r);
+ typedef ngx_int_t (*ngx_http_output_body_filter_pt)
+     (ngx_http_request_t *r, ngx_chain_t *chain);
++typedef ngx_int_t (*ngx_http_output_write_filter_pt)
++    (ngx_http_request_t *r, off_t bsent);
+ typedef ngx_int_t (*ngx_http_request_body_filter_pt)
+     (ngx_http_request_t *r, ngx_chain_t *chain);
+ 
+diff -pruN nginx-1.7.11/src/http/ngx_http.h nginx-1.7.11.zls/src/http/ngx_http.h
+--- nginx-1.7.11/src/http/ngx_http.h	2015-04-21 22:12:00.000000000 +0800
++++ nginx-1.7.11.zls/src/http/ngx_http.h	2015-06-04 12:12:25.374712947 +0800
+@@ -178,6 +178,7 @@ extern ngx_str_t  ngx_http_html_default_
+ 
+ extern ngx_http_output_header_filter_pt  ngx_http_top_header_filter;
+ extern ngx_http_output_body_filter_pt    ngx_http_top_body_filter;
++extern ngx_http_output_write_filter_pt   ngx_http_top_write_filter;
+ extern ngx_http_request_body_filter_pt   ngx_http_top_request_body_filter;
+ 
+ 
+diff -pruN nginx-1.7.11/src/http/ngx_http_write_filter_module.c nginx-1.7.11.zls/src/http/ngx_http_write_filter_module.c
+--- nginx-1.7.11/src/http/ngx_http_write_filter_module.c	2015-04-21 22:12:01.000000000 +0800
++++ nginx-1.7.11.zls/src/http/ngx_http_write_filter_module.c	2015-06-04 12:16:13.964998947 +0800
+@@ -261,6 +261,10 @@ ngx_http_write_filter(ngx_http_request_t
+         return NGX_ERROR;
+     }
+ 
++    if (ngx_http_top_write_filter){
++        ngx_http_top_write_filter(r, sent);
++    }
++
+     if (r->limit_rate) {
+ 
+         nsent = c->sent;

@@ -1,5 +1,6 @@
-* 模块使用需要打 patch, 目前测试对 1.0.2 及以上版本有效
-  cd nginx-1.0.x; patch -p1 < path/write_filter.patch
+* 模块使用需要打 patch, 根据 nginx 的版本选用合适的 patch, 对
+  应关系参见 README.md
+  cd nginx-1.0.x; patch -p1 < path/write_filter-VERSION.patch
 
 * 配置说明
   * req_status_zone

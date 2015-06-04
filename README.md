@@ -94,7 +94,7 @@ Installation
     tar -xzvf nginx-1.3.5.tar.gz
     cd nginx-1.3.5/
 
-    patch -p1 < /path/to/ngx_req_status/write_filter.patch
+    patch -p1 < /path/to/ngx_req_status/write_filter-VERSION.patch
 
     ./configure --prefix=/usr/local/nginx \
                 --add-module=/path/to/ngx_req_status
@@ -102,15 +102,27 @@ Installation
     make -j2
     make install
 
-Compatibility
-=============
+Patches
+=======
 
-The following versions of Nginx should work with this module:
+Choose patch file according to Nginx version:
 
-* **1.3.x**         (last tested: 1.3.5)
+### write_filter-1.7.11.patch
+
+* **1.9.0-1.9.1**
+* **1.8.0**
+* **1.7.11-1.7.12**
+
+### write_filter.patch
+
+* **1.7.0-1.7.10**
+* **1.6.x**
+* **1.5.x**
+* **1.4.x**
+* **1.3.x**
 * **1.2.x**
 * **1.1.x**
-* **1.0.x**         (last tested: 1.0.2)
+* **1.0.x**
 
 Changes
 =======
