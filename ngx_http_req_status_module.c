@@ -303,7 +303,6 @@ ngx_http_req_status_handler(ngx_http_request_t *r)
     uint32_t                            hash;
     ngx_str_t                           key;
     ngx_uint_t                          i;
-    ngx_time_t                         *tp;
     ngx_shm_zone_t                    **pzone;
     ngx_pool_cleanup_t                 *cln;
     ngx_http_req_status_ctx_t          *r_ctx;
@@ -400,8 +399,6 @@ ngx_http_req_status_handler(ngx_http_request_t *r)
 
                 ngx_rbtree_insert(&ctx->sh->rbtree, &ssn->node);
             }
-
-            tp = ngx_timeofday();
 
             ssn->data.requests ++;
             ssn->active ++;
